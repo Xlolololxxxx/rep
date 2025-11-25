@@ -210,24 +210,13 @@ export function setupBulkReplay() {
 
     if (bulkStopBtn) {
         bulkStopBtn.addEventListener('click', () => {
-            if (bulkStopBtn.dataset.state === 'paused') {
-                state.shouldPauseBulk = false;
-                bulkStopBtn.dataset.state = 'running';
-                bulkStopBtn.title = 'Pause Attack';
-                bulkStopBtn.innerHTML = `
-                    <svg viewBox="0 0 24 24" width="16" height="16">
-                        <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" fill="currentColor" />
-                    </svg>
-                `;
+            if (typeof repAndroid !== 'undefined') {
+                repAndroid.stopBulkReplay();
+                bulkStopBtn.disabled = true;
+                bulkStopBtn.title = 'Stopping...';
             } else {
-                state.shouldPauseBulk = true;
-                bulkStopBtn.dataset.state = 'paused';
-                bulkStopBtn.title = 'Resume Attack';
-                bulkStopBtn.innerHTML = `
-                    <svg viewBox="0 0 24 24" width="16" height="16">
-                        <path d="M8 5v14l11-7z" fill="currentColor" />
-                    </svg>
-                `;
+                // Fallback for non-android env
+                state.shouldStopBulk = true;
             }
         });
     }
@@ -286,6 +275,7 @@ export function setupBulkReplay() {
     async function startBulkReplay() {
         const template = elements.rawRequestInput.innerText;
 
+        // ... (Payload configuration logic remains the same)
         if (state.currentAttackType === 'battering-ram') {
             const container = document.getElementById('battering-ram-config');
             const type = container.querySelector('.payload-type-select').value;
@@ -298,24 +288,20 @@ export function setupBulkReplay() {
                     step: parseInt(container.querySelector('.num-step-input').value)
                 } : { from: 1, to: 10, step: 1 }
             };
-
-            state.positionConfigs.forEach(config => {
-                config.type = sharedConfig.type;
-                config.list = sharedConfig.list;
-                config.numbers = sharedConfig.numbers;
-            });
+            state.positionConfigs.forEach(config => Object.assign(config, sharedConfig));
         } else {
-            const cards = document.querySelectorAll('.position-card');
-            cards.forEach((card, index) => {
+            document.querySelectorAll('.position-card').forEach((card, index) => {
                 const type = card.querySelector('.payload-type-select').value;
-                state.positionConfigs[index].type = type;
-                state.positionConfigs[index].list = type === 'simple-list' ?
-                    card.querySelector('.payload-list-input').value : '';
-                state.positionConfigs[index].numbers = type === 'numbers' ? {
-                    from: parseInt(card.querySelector('.num-from-input').value),
-                    to: parseInt(card.querySelector('.num-to-input').value),
-                    step: parseInt(card.querySelector('.num-step-input').value)
-                } : { from: 1, to: 10, step: 1 };
+                state.positionConfigs[index] = {
+                    ...state.positionConfigs[index],
+                    type,
+                    list: type === 'simple-list' ? card.querySelector('.payload-list-input').value : '',
+                    numbers: type === 'numbers' ? {
+                        from: parseInt(card.querySelector('.num-from-input').value),
+                        to: parseInt(card.querySelector('.num-to-input').value),
+                        step: parseInt(card.querySelector('.num-step-input').value)
+                    } : { from: 1, to: 10, step: 1 }
+                };
             });
         }
 
@@ -340,210 +326,85 @@ export function setupBulkReplay() {
 
         bulkConfigModal.style.display = 'none';
 
-        let baselineResponse = elements.rawResponseDisplay.textContent || '';
-        if (baselineResponse.trim()) {
-            elements.diffToggle.style.display = 'flex';
-        }
-
+        // Setup UI
+        const baselineResponse = elements.rawResponseDisplay.textContent || '';
         bulkReplayPane.style.display = 'flex';
         verticalResizeHandle.style.display = 'block';
         bulkResultsTable.innerHTML = '';
-        state.shouldStopBulk = false;
-        state.shouldPauseBulk = false;
-
         if (bulkStopBtn) {
-            bulkStopBtn.dataset.state = 'running';
-            bulkStopBtn.title = 'Pause Attack';
-            bulkStopBtn.innerHTML = `
-                <svg viewBox="0 0 24 24" width="16" height="16">
-                    <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" fill="currentColor" />
-                </svg>
-            `;
+            bulkStopBtn.disabled = false;
+            bulkStopBtn.title = 'Stop Attack';
         }
 
         const bulkResults = [];
-        const useHttps = document.getElementById('use-https').checked;
-        const scheme = useHttps ? 'https' : 'http';
 
-        let completed = 0;
-        const total = attackRequests.length;
+        // Define the callback for the Android bridge
+        window.onBulkReplayUpdate = (result) => {
+            const { index, total, error, stopped, complete } = result;
 
-        for (let i = 0; i < total; i++) {
-            if (state.shouldStopBulk) break;
-
-            while (state.shouldPauseBulk) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-                if (state.shouldStopBulk) break;
-            }
-
-            if (state.shouldStopBulk) break;
-
-            const { requestContent } = attackRequests[i];
-
-            const row = document.createElement('tr');
-            row.dataset.index = i;
-            row.innerHTML = `
-                <td>${i + 1}</td>
-                <td>${attackRequests[i].payloads.join(', ')}</td>
-                <td class="status-cell">Sending...</td>
-                <td class="size-cell">-</td>
-                <td class="time-cell">-</td>
-            `;
-            bulkResultsTable.appendChild(row);
-            row.scrollIntoView({ behavior: 'smooth', block: 'end' });
-
-            row.addEventListener('click', () => {
-                bulkResultsTable.querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
-                row.classList.add('selected');
-
-                const result = bulkResults[i];
-                if (result) {
-                    elements.rawRequestInput.innerText = result.requestContent;
-
-                    elements.resStatus.textContent = result.statusText ? `${result.status} ${result.statusText}` : result.status;
-                    elements.resStatus.className = 'status-badge';
-                    if (result.status >= 200 && result.status < 300) elements.resStatus.classList.add('status-2xx');
-                    else if (result.status >= 400 && result.status < 500) elements.resStatus.classList.add('status-4xx');
-                    else if (result.status >= 500) elements.resStatus.classList.add('status-5xx');
-
-                    elements.resTime.textContent = result.duration;
-                    elements.resSize.textContent = formatBytes(result.size);
-
-                    if (result.error) {
-                        elements.rawResponseDisplay.textContent = result.error;
-                    } else {
-                        let rawResponse = `HTTP/1.1 ${result.status} ${result.statusText}\n`;
-                        if (result.headers) {
-                            result.headers.forEach((val, key) => {
-                                rawResponse += `${key}: ${val}\n`;
-                            });
-                        }
-                        rawResponse += '\n';
-
-                        try {
-                            const json = JSON.parse(result.responseBody);
-                            rawResponse += JSON.stringify(json, null, 2);
-                        } catch (e) {
-                            rawResponse += result.responseBody;
-                        }
-
-                        if (elements.showDiffCheckbox && elements.showDiffCheckbox.checked && baselineResponse.trim() && typeof Diff !== 'undefined') {
-                            elements.rawResponseDisplay.innerHTML = renderDiff(baselineResponse, rawResponse);
-                        } else {
-                            elements.rawResponseDisplay.innerHTML = highlightHTTP(rawResponse);
-                        }
-                    }
-                }
-            });
-
-            const startTime = performance.now();
-
-            try {
-                // We duplicate parse logic here or import it. 
-                // Since this is inside the loop and needs to be fast, and slightly different (no UI update), we can keep it or import `parseRequest` from network.js
-                // But `parseRequest` in network.js is designed for the main editor.
-                // Let's just use fetch directly as in original code for now to minimize risk.
-
-                const lines = requestContent.split('\n');
-                if (lines.length === 0) throw new Error('No content');
-
-                const requestLine = lines[0].trim();
-                const reqLineParts = requestLine.split(' ');
-                if (reqLineParts.length < 2) throw new Error('Invalid Request Line');
-
-                const method = reqLineParts[0].toUpperCase();
-                const path = reqLineParts[1];
-
-                let headers = {};
-                let bodyLines = [];
-                let isBody = false;
-                let host = '';
-
-                for (let j = 1; j < lines.length; j++) {
-                    const line = lines[j];
-                    if (!isBody) {
-                        if (line.trim() === '') {
-                            isBody = true;
-                            continue;
-                        }
-                        if (line.trim().startsWith(':')) continue;
-
-                        const colonIndex = line.indexOf(':');
-                        if (colonIndex > 0) {
-                            const key = line.substring(0, colonIndex).trim();
-                            const value = line.substring(colonIndex + 1).trim();
-                            if (key && value) {
-                                if (key.toLowerCase() === 'host') host = value;
-                                else headers[key] = value;
-                            }
-                        }
-                    } else {
-                        bodyLines.push(line);
-                    }
-                }
-
-                if (!host) throw new Error('Host header missing');
-
-                let url = path;
-                if (!path.startsWith('http')) {
-                    url = `${scheme}://${host}${path}`;
-                }
-
-                const body = bodyLines.join('\n');
-
-                const options = {
-                    method: method,
-                    headers: headers
-                };
-
-                if (method !== 'GET' && method !== 'HEAD') {
-                    options.body = body;
-                }
-
-                const response = await fetch(url, options);
-                const endTime = performance.now();
-                const responseBody = await response.text();
-                const responseSize = new TextEncoder().encode(responseBody).length;
-                const duration = `${(endTime - startTime).toFixed(0)}ms`;
-
-                bulkResults[i] = {
-                    requestContent: requestContent,
-                    status: response.status,
-                    statusText: response.statusText,
-                    headers: response.headers,
-                    responseBody: responseBody,
-                    size: responseSize,
-                    duration: duration,
-                    error: null
-                };
-
-                row.querySelector('.status-cell').textContent = `${response.status} ${response.statusText}`;
-                row.querySelector('.size-cell').textContent = formatBytes(responseSize);
-                row.querySelector('.time-cell').textContent = duration;
-
-            } catch (error) {
-                const endTime = performance.now();
-                console.error(error);
-
-                bulkResults[i] = {
-                    requestContent: requestContent,
-                    status: 'Error',
-                    statusText: '',
-                    headers: null,
-                    responseBody: '',
-                    size: 0,
-                    duration: `${(endTime - startTime).toFixed(0)}ms`,
-                    error: error.message
-                };
-
-                row.querySelector('.status-cell').textContent = 'Error';
-                row.querySelector('.status-cell').title = error.message;
-            }
-
-            completed++;
-            const progress = (completed / total) * 100;
+            // Update progress bar
+            const progress = (index + 1) / total * 100;
             bulkProgressBar.style.setProperty('--progress', `${progress}%`);
-            bulkProgressText.textContent = `${completed}/${total}`;
+            bulkProgressText.textContent = `${index + 1}/${total}`;
+
+            // Store result
+            bulkResults[index] = result;
+
+            // Add row if it doesn't exist
+            let row = bulkResultsTable.querySelector(`tr[data-index="${index}"]`);
+            if (!row) {
+                 row = document.createElement('tr');
+                 row.dataset.index = index;
+                 row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${attackRequests[index].payloads.join(', ')}</td>
+                    <td class="status-cell"></td>
+                    <td class="size-cell"></td>
+                    <td class="time-cell"></td>
+                 `;
+                bulkResultsTable.appendChild(row);
+                row.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+                 row.addEventListener('click', () => {
+                     bulkResultsTable.querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
+                     row.classList.add('selected');
+                     const result = bulkResults[index];
+                     if (result) {
+                         elements.rawRequestInput.innerText = result.requestContent;
+                         elements.resStatus.textContent = `${result.status} ${result.statusText}`;
+                         elements.resTime.textContent = `${result.duration}ms`;
+                         elements.resSize.textContent = formatBytes(result.size);
+                         elements.rawResponseDisplay.innerHTML = highlightHTTP(result.body);
+                     }
+                 });
+            }
+
+            // Update row with result
+            const statusCell = row.querySelector('.status-cell');
+            const sizeCell = row.querySelector('.size-cell');
+            const timeCell = row.querySelector('.time-cell');
+
+            if (error) {
+                statusCell.textContent = 'Error';
+                statusCell.title = error;
+            } else {
+                statusCell.textContent = `${result.status} ${result.statusText}`;
+                sizeCell.textContent = formatBytes(result.size);
+                timeCell.textContent = `${result.duration}ms`;
+            }
+
+            if (stopped || complete) {
+                 bulkStopBtn.disabled = true;
+                 bulkStopBtn.title = complete ? 'Finished' : 'Stopped';
+                 delete window.onBulkReplayUpdate; // Clean up
+            }
+        };
+
+        // Start the attack via the Android bridge
+        if (typeof repAndroid !== 'undefined') {
+            repAndroid.executeBulkReplay(JSON.stringify(attackRequests), 'window.onBulkReplayUpdate');
+        } else {
+            alert('Android bridge not available.');
         }
     }
 }

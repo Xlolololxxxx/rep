@@ -130,21 +130,42 @@ export function parseRequest(rawContent, useHttps) {
     return { url, options, method, filteredHeaders, bodyText };
 }
 
-export async function executeRequest(url, options) {
-    const startTime = performance.now();
-    const response = await fetch(url, options);
-    const endTime = performance.now();
-    const duration = (endTime - startTime).toFixed(0);
+export async function executeRequest(rawContent, useHttps) {
+    if (typeof repAndroid === 'undefined') {
+        throw new Error('Android bridge is not available.');
+    }
 
-    const responseBody = await response.text();
-    const size = new TextEncoder().encode(responseBody).length;
+    try {
+        const { url, options, method, filteredHeaders, bodyText } = parseRequest(rawContent, useHttps);
 
-    return {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-        body: responseBody,
-        size: size,
-        duration: duration
-    };
+        // Prepare the request object for the Android bridge
+        const request = {
+            url: url,
+            method: options.method,
+            headers: options.headers,
+            body: options.body || '',
+        };
+
+        const response = await repAndroid.sendRequest(request);
+
+        // Convert header string to a Map-like object for consistency
+        const responseHeaders = new Map();
+        if (response.headers) {
+            for (const [key, value] of Object.entries(response.headers)) {
+                responseHeaders.set(key, value);
+            }
+        }
+
+        return {
+            status: response.status,
+            statusText: response.statusText,
+            headers: responseHeaders,
+            body: response.body,
+            size: response.size,
+            duration: response.duration
+        };
+    } catch (err) {
+        console.error("Android bridge sendRequest failed:", err);
+        throw err;
+    }
 }

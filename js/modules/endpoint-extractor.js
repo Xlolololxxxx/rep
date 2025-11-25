@@ -151,9 +151,17 @@ function isValidEndpoint(endpoint) {
     return true;
 }
 
-export async function extractEndpoints(requests, onProgress) {
+export async function extractEndpoints(onProgress) {
     const results = [];
     const seenEndpoints = new Set(); // Deduplicate
+    let requests = [];
+
+    if (typeof repAndroid !== 'undefined') {
+        requests = await repAndroid.getRequests();
+    } else {
+        // Fallback to UI state if bridge not available
+        requests = state.requests;
+    }
 
     const jsRequests = requests.filter(req => {
         const url = req.request.url.toLowerCase();

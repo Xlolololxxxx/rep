@@ -211,11 +211,19 @@
 
         exportAllRequests: function() {
             try {
-                const json = Android.exportAllRequests();
-                return JSON.parse(json);
+                return Android.exportAllRequests();
             } catch (e) {
                 console.error('Export all requests error:', e);
-                return [];
+                return null;
+            }
+        },
+
+        importRequests: function(jsonData) {
+            try {
+                return Android.importRequests(jsonData);
+            } catch (e) {
+                console.error('Import requests error:', e);
+                return false;
             }
         },
 

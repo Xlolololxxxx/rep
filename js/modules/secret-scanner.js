@@ -160,8 +160,17 @@ function calculateConfidence(type, match, entropy) {
     return Math.min(100, Math.max(0, score));
 }
 
-export async function scanForSecrets(requests, onProgress) {
+export async function scanForSecrets(onProgress) {
     const results = [];
+    let requests = [];
+
+    if (typeof repAndroid !== 'undefined') {
+        requests = await repAndroid.getRequests();
+    } else {
+        // Fallback to UI state if bridge not available (for testing in browser)
+        requests = state.requests;
+    }
+
     const jsRequests = requests.filter(req => {
         const url = req.request.url.toLowerCase();
         const mime = req.response.content.mimeType.toLowerCase();

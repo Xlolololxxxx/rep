@@ -311,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 secretsResults.innerHTML = '';
                 extractorProgressText.textContent = 'Scanning for secrets...';
 
-                currentSecretResults = await scanForSecrets(state.requests, (processed, total) => {
+                currentSecretResults = await scanForSecrets((processed, total) => {
                     const percent = Math.round((processed / total) * 100);
                     extractorProgressBar.style.setProperty('--progress', `${percent}%`);
                     extractorProgressText.textContent = `Scanning JS files... ${processed}/${total}`;
@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 endpointsResults.innerHTML = '';
                 extractorProgressText.textContent = 'Extracting endpoints...';
 
-                currentEndpointResults = await extractEndpoints(state.requests, (processed, total) => {
+                currentEndpointResults = await extractEndpoints((processed, total) => {
                     const percent = Math.round((processed / total) * 100);
                     extractorProgressBar.style.setProperty('--progress', `${percent}%`);
                     extractorProgressText.textContent = `Extracting endpoints... ${processed}/${total}`;
@@ -615,6 +615,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // AI Features
     setupAIFeatures();
+
+    window.refreshRequestList = async () => {
+        clearAllRequestsUI();
+        const requests = await repAndroid.getRequests();
+        requests.forEach((req, index) => {
+            renderRequestItem(req, index);
+        });
+    };
 });
 
 async function handleSendRequest() {
@@ -626,14 +634,12 @@ async function handleSendRequest() {
     updateHistoryButtons();
 
     try {
-        const { url, options, method, filteredHeaders, bodyText } = parseRequest(rawContent, useHttps);
-
         elements.resStatus.textContent = 'Sending...';
         elements.resStatus.className = 'status-badge';
 
-        console.log('Sending request to:', url);
+        console.log('Sending request via Android bridge...');
 
-        const result = await executeRequest(url, options);
+        const result = await executeRequest(rawContent, useHttps);
 
         elements.resTime.textContent = `${result.duration}ms`;
         elements.resSize.textContent = formatBytes(result.size);

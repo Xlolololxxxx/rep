@@ -749,105 +749,40 @@ function getFilteredRequests() {
 }
 
 export function exportRequests() {
-    const requestsToExport = getFilteredRequests();
-
-    if (requestsToExport.length === 0) {
-        alert('No requests to export (check your filters).');
-        return;
+    if (typeof repAndroid !== 'undefined') {
+        const jsonData = repAndroid.exportAllRequests();
+        if (jsonData) {
+            // In a real implementation, we would pass this to a native share/save intent.
+            // For now, we can just log it.
+            console.log("Exported Data:", jsonData);
+            alert('Requests exported. Check the console.');
+        } else {
+            alert('Export failed.');
+        }
+    } else {
+        alert('Android bridge not available for export.');
     }
-
-    const exportData = {
-        version: "1.0",
-        exported_at: new Date().toISOString(),
-        requests: requestsToExport.map((req, index) => {
-            const headersObj = {};
-            req.request.headers.forEach(h => headersObj[h.name] = h.value);
-
-            const resHeadersObj = {};
-            if (req.response.headers) {
-                req.response.headers.forEach(h => resHeadersObj[h.name] = h.value);
-            }
-
-            return {
-                id: `req_${index + 1}`,
-                method: req.request.method,
-                url: req.request.url,
-                headers: headersObj,
-                body: req.request.postData ? req.request.postData.text : "",
-                response: {
-                    status: req.response.status,
-                    headers: resHeadersObj,
-                    body: req.response.content ? req.response.content.text : ""
-                },
-                timestamp: req.capturedAt
-            };
-        })
-    };
-
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `rep_export_${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
 }
 
 export function importRequests(file) {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        try {
-            const data = JSON.parse(e.target.result);
-
-            if (!data.requests || !Array.isArray(data.requests)) {
-                throw new Error('Invalid format: "requests" array missing.');
+    if (typeof repAndroid !== 'undefined') {
+        // This will be triggered by the native file picker in the final version.
+        // For now, we simulate the callback from native code.
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const content = e.target.result;
+            if (repAndroid.importRequests(content)) {
+                alert('Import successful!');
+                // We need a way to refresh the request list from the JS side.
+                // This might require adding a new bridge function or a refresh event.
+            } else {
+                alert('Import failed.');
             }
+        };
+        reader.readAsText(file);
 
-            data.requests.forEach(item => {
-                const headersArr = [];
-                if (item.headers) {
-                    for (const [key, value] of Object.entries(item.headers)) {
-                        headersArr.push({ name: key, value: value });
-                    }
-                }
-
-                const resHeadersArr = [];
-                if (item.response && item.response.headers) {
-                    for (const [key, value] of Object.entries(item.response.headers)) {
-                        resHeadersArr.push({ name: key, value: value });
-                    }
-                }
-
-                const newReq = {
-                    request: {
-                        method: item.method || 'GET',
-                        url: item.url || '',
-                        headers: headersArr,
-                        postData: { text: item.body || '' }
-                    },
-                    response: {
-                        status: item.response ? item.response.status : 0,
-                        statusText: '',
-                        headers: resHeadersArr,
-                        content: { text: item.response ? item.response.body : '' }
-                    },
-                    capturedAt: item.timestamp || Date.now(),
-                    starred: false
-                };
-
-                state.requests.push(newReq);
-                renderRequestItem(newReq, state.requests.length - 1);
-            });
-
-            alert(`Imported ${data.requests.length} requests.`);
-
-        } catch (error) {
-            console.error('Import error:', error);
-            alert('Failed to import: ' + error.message);
-        }
-    };
-    reader.readAsText(file);
+    } else {
+        alert('Android bridge not available for import.');
+    }
 }
 // I will add them in the next step to avoid hitting the output limit.
