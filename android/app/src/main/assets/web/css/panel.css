@@ -10,6 +10,7 @@
     --hover-bg: #35363a;
     --mobile-breakpoint: 480px;
     --tablet-breakpoint: 768px;
+    --editor-font-size: 14px;
 }
 
 body {
@@ -438,6 +439,22 @@ body {
     flex-shrink: 0;
 }
 
+.settings-section {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.settings-section:last-child {
+    border-bottom: none;
+}
+
+.settings-section h4 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    color: var(--accent-color);
+}
+
 .form-group {
     margin-bottom: 15px;
 }
@@ -447,6 +464,29 @@ body {
     margin-bottom: 5px;
     font-size: 12px;
     color: #9aa0a6;
+}
+
+.form-group small {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+.form-group input[type="text"],
+.form-group input[type="password"],
+.form-group select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-color);
+    color: var(--text-color);
+    font-size: 13px;
+}
+
+.form-group input[type="checkbox"] {
+    margin-right: 8px;
 }
 
 .form-control {
@@ -790,7 +830,7 @@ tr.selected {
     border: none;
     padding: 10px;
     font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 13px;
+    font-size: var(--editor-font-size);
     line-height: 1.5;
     outline: none;
     white-space: pre-wrap;
@@ -1054,7 +1094,7 @@ pre {
     overflow-y: auto;
     overflow-x: auto;
     font-family: 'Consolas', 'Monaco', monospace;
-    font-size: 13px;
+    font-size: var(--editor-font-size);
     line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-all;
@@ -1086,11 +1126,13 @@ pre {
     background: transparent;
     border: 1px solid var(--border-color);
     color: var(--text-color);
-    padding: 4px 8px;
+    padding: 8px 16px;
     border-radius: 4px;
     cursor: pointer;
-    margin: 5px;
-    align-self: flex-start;
+}
+
+.secondary-btn:hover {
+    background: var(--border-color);
 }
 
 .status-badge {
@@ -1733,6 +1775,58 @@ pre {
 .secret-file a:hover {
     text-decoration: underline;
     color: var(--accent-color);
+}
+
+/* Capture Controls */
+.capture-controls {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.capture-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.capture-btn.start {
+    background: #22c55e;
+    color: white;
+}
+
+.capture-btn.start:hover {
+    background: #16a34a;
+}
+
+.capture-btn.stop {
+    background: #ef4444;
+    color: white;
+}
+
+.capture-btn.stop:hover {
+    background: #dc2626;
+}
+
+.capture-status {
+    font-size: 12px;
+    color: #22c55e;
+    margin-left: 8px;
+}
+
+.capture-status.active {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
 
 /* ==================== MOBILE RESPONSIVE STYLES ==================== */

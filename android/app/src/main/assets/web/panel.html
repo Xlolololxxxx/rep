@@ -69,6 +69,21 @@
                     </button>
                     <input type="file" id="import-file" accept=".json" style="display: none;">
                 </div>
+                <div class="capture-controls">
+                    <button id="start-capture-btn" class="capture-btn start" title="Start Capture">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="12" cy="12" r="10"/>
+                        </svg>
+                        <span>Start</span>
+                    </button>
+                    <button id="stop-capture-btn" class="capture-btn stop" style="display:none;" title="Stop Capture">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="6" y="6" width="12" height="12"/>
+                        </svg>
+                        <span>Stop</span>
+                    </button>
+                </div>
+                <div id="capture-status" class="capture-status"></div>
                 <div class="filters">
                     <button class="filter-btn active" data-filter="all">All</button>
                     <button class="filter-btn" data-filter="GET">GET</button>
@@ -409,23 +424,71 @@
                 <button class="close-modal">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label for="anthropic-api-key">Anthropic API Key</label>
-                    <input type="password" id="anthropic-api-key" class="form-control" placeholder="sk-ant-...">
-                    <p class="help-text">Required for "Explain Request" feature. Stored locally.</p>
+                <div class="settings-section">
+                    <h4>AI Configuration</h4>
+                    <div class="form-group">
+                        <label for="anthropic-api-key">Anthropic API Key</label>
+                        <input type="password" id="anthropic-api-key" placeholder="sk-ant-..." autocomplete="off">
+                        <small>Required for AI features (Explain, Suggest Attack)</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="anthropic-model">Claude Model</label>
+                        <select id="anthropic-model">
+                            <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                            <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+                            <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+                            <option value="claude-3-haiku-20240307">Claude 3 Haiku (Fast)</option>
+                        </select>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="anthropic-model">Model</label>
-                    <select id="anthropic-model" class="form-control">
-                        <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (Oct 2024)</option>
-                        <option value="claude-3-5-sonnet-20240620">Claude 3.5 Sonnet (Jun 2024)</option>
-                        <option value="claude-3-opus-20240229">Claude 3 Opus</option>
-                        <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
-                    </select>
+
+                <div class="settings-section">
+                    <h4>Capture Settings</h4>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="auto-capture" checked>
+                            Auto-capture on app start
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="filter-static">
+                            Filter static resources (CSS, images, fonts)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h4>Display</h4>
+                    <div class="form-group">
+                        <label for="theme-select">Theme</label>
+                        <select id="theme-select">
+                            <option value="dark">Dark</option>
+                            <option value="light">Light</option>
+                            <option value="system">System Default</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="font-size">Editor Font Size</label>
+                        <select id="font-size">
+                            <option value="12">12px</option>
+                            <option value="14" selected>14px</option>
+                            <option value="16">16px</option>
+                            <option value="18">18px</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h4>Data</h4>
+                    <div class="form-group">
+                        <button id="clear-storage-btn" class="secondary-btn">Clear All Data</button>
+                        <small>Remove all saved requests and settings</small>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="save-settings-btn" class="primary-btn">Save</button>
+                <button id="save-settings-btn" class="primary-btn">Save Settings</button>
             </div>
         </div>
     </div>

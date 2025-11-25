@@ -14,7 +14,37 @@ export function saveAISettings(apiKey, model) {
 
 export async function streamExplanationFromClaude(apiKey, model, request, onUpdate) {
     const systemPrompt = "You are an expert security researcher and web developer. Explain the following HTTP request in detail, highlighting interesting parameters, potential security implications, and what this request is likely doing. Be concise but thorough.";
+    const userMessage = `Explain this HTTP request:\n\n${request}`;
 
+    // Use Android bridge if available (avoids CORS issues in WebView)
+    if (window.repAndroid && typeof window.repAndroid.callAnthropicAPI === 'function') {
+        try {
+            const response = await window.repAndroid.callAnthropicAPI(
+                apiKey,
+                model,
+                systemPrompt,
+                userMessage
+            );
+
+            // Extract text from response
+            let fullText = '';
+            if (response.content && response.content[0]) {
+                fullText = response.content[0].text;
+            } else if (typeof response === 'string') {
+                fullText = response;
+            } else {
+                throw new Error('Invalid response format');
+            }
+
+            // Call onUpdate with the full response (Android doesn't support streaming)
+            onUpdate(fullText);
+            return fullText;
+        } catch (e) {
+            throw new Error('AI request failed: ' + e.message);
+        }
+    }
+
+    // Fallback to direct fetch for Chrome extension (with streaming)
     const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -29,7 +59,7 @@ export async function streamExplanationFromClaude(apiKey, model, request, onUpda
             system: systemPrompt,
             stream: true,
             messages: [
-                { role: 'user', content: `Explain this HTTP request:\n\n${request}` }
+                { role: 'user', content: userMessage }
             ]
         })
     });

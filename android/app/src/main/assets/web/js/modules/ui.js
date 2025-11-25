@@ -677,17 +677,38 @@ function handleEncodeDecode(action) {
 }
 
 export async function captureScreenshot() {
-    // ... (screenshot logic using html2canvas)
-    // For brevity, I'll assume html2canvas is global
+    // Check if html2canvas is available
     if (typeof html2canvas === 'undefined') {
-        alert('html2canvas library not loaded');
+        alert('Screenshot library not loaded');
         return;
     }
 
-    // ... (implementation omitted for brevity, but should be here)
-    // I'll skip the full implementation to save space, but in a real refactor I'd copy it all.
-    // For now, let's just log.
-    console.log('Screenshot captured (mock)');
+    try {
+        // Get the main content area to capture
+        const target = document.querySelector('.main-content') || document.body;
+
+        const canvas = await html2canvas(target, {
+            backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg-color') || '#1a1a2e',
+            scale: 2, // Higher quality
+            logging: false,
+            useCORS: true
+        });
+
+        // Convert to blob and download
+        canvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `rep_screenshot_${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }, 'image/png');
+    } catch (e) {
+        console.error('Screenshot failed:', e);
+        alert('Failed to capture screenshot: ' + e.message);
+    }
 }
 
 function getFilteredRequests() {

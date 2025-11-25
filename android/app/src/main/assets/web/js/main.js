@@ -186,8 +186,13 @@ function setupBottomNav() {
                     break;
                 case 'capture':
                     // Toggle capture
-                    const captureBtn = document.getElementById('start-capture-btn') || document.getElementById('stop-capture-btn');
-                    captureBtn?.click();
+                    const startBtn = document.getElementById('start-capture-btn');
+                    const stopBtn = document.getElementById('stop-capture-btn');
+                    if (stopBtn?.style.display !== 'none') {
+                        stopBtn?.click(); // Currently capturing, so stop
+                    } else {
+                        startBtn?.click(); // Not capturing, so start
+                    }
                     break;
                 case 'settings':
                     // Open settings modal
@@ -195,6 +200,47 @@ function setupBottomNav() {
                     break;
             }
         });
+    });
+}
+
+// Capture Controls
+function setupCaptureControls() {
+    const startBtn = document.getElementById('start-capture-btn');
+    const stopBtn = document.getElementById('stop-capture-btn');
+    const statusEl = document.getElementById('capture-status');
+
+    let isCapturing = false;
+
+    startBtn?.addEventListener('click', async () => {
+        if (window.repAndroid?.startCapture) {
+            try {
+                await window.repAndroid.startCapture();
+                isCapturing = true;
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'flex';
+                statusEl.textContent = '● Capturing...';
+                statusEl.classList.add('active');
+            } catch (e) {
+                alert('Failed to start capture: ' + e.message);
+            }
+        } else {
+            alert('Capture not available. Please install PCAPdroid.');
+        }
+    });
+
+    stopBtn?.addEventListener('click', async () => {
+        if (window.repAndroid?.stopCapture) {
+            try {
+                await window.repAndroid.stopCapture();
+                isCapturing = false;
+                stopBtn.style.display = 'none';
+                startBtn.style.display = 'flex';
+                statusEl.textContent = '';
+                statusEl.classList.remove('active');
+            } catch (e) {
+                alert('Failed to stop capture: ' + e.message);
+            }
+        }
     });
 }
 
@@ -234,6 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupContextMenu();
     setupUndoRedo();
     setupBulkReplay();
+    setupCaptureControls();
     setupMobileUI();
 
     // Event Listeners
@@ -646,6 +693,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Settings
+    setupSettings();
+
     // AI Features
     setupAIFeatures();
 
@@ -733,6 +783,75 @@ async function handleSendRequest() {
     }
 }
 
+function setupSettings() {
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const saveBtn = document.getElementById('save-settings-btn');
+    const clearStorageBtn = document.getElementById('clear-storage-btn');
+
+    // Load saved settings
+    const apiKey = localStorage.getItem('anthropic_api_key') || '';
+    const model = localStorage.getItem('anthropic_model') || 'claude-sonnet-4-20250514';
+    const theme = localStorage.getItem('theme_preference') || 'dark';
+    const fontSize = localStorage.getItem('editor_font_size') || '14';
+    const filterStatic = localStorage.getItem('filter_static') === 'true';
+    const autoCapture = localStorage.getItem('auto_capture') !== 'false';
+
+    // Populate form
+    document.getElementById('anthropic-api-key').value = apiKey;
+    document.getElementById('anthropic-model').value = model;
+    document.getElementById('theme-select').value = theme;
+    document.getElementById('font-size').value = fontSize;
+    document.getElementById('filter-static').checked = filterStatic;
+    document.getElementById('auto-capture').checked = autoCapture;
+
+    // Apply font size
+    document.documentElement.style.setProperty('--editor-font-size', fontSize + 'px');
+
+    settingsBtn?.addEventListener('click', () => {
+        settingsModal.style.display = 'flex';
+    });
+
+    saveBtn?.addEventListener('click', () => {
+        localStorage.setItem('anthropic_api_key', document.getElementById('anthropic-api-key').value);
+        localStorage.setItem('anthropic_model', document.getElementById('anthropic-model').value);
+        localStorage.setItem('theme_preference', document.getElementById('theme-select').value);
+        localStorage.setItem('editor_font_size', document.getElementById('font-size').value);
+        localStorage.setItem('filter_static', document.getElementById('filter-static').checked);
+        localStorage.setItem('auto_capture', document.getElementById('auto-capture').checked);
+
+        // Apply changes
+        const fontSize = document.getElementById('font-size').value;
+        document.documentElement.style.setProperty('--editor-font-size', fontSize + 'px');
+
+        // Apply theme
+        const theme = document.getElementById('theme-select').value;
+        applyTheme(theme);
+
+        settingsModal.style.display = 'none';
+        alert('Settings saved!');
+    });
+
+    clearStorageBtn?.addEventListener('click', () => {
+        if (confirm('Are you sure you want to clear all data? This cannot be undone.')) {
+            localStorage.clear();
+            if (window.repAndroid?.clearRequests) {
+                window.repAndroid.clearRequests();
+            }
+            location.reload();
+        }
+    });
+}
+
+function applyTheme(theme) {
+    if (theme === 'system') {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.body.classList.toggle('light-theme', !prefersDark);
+    } else {
+        document.body.classList.toggle('light-theme', theme === 'light');
+    }
+}
+
 function setupAIFeatures() {
     const settingsBtn = document.getElementById('settings-btn');
     const settingsModal = document.getElementById('settings-modal');
@@ -746,30 +865,6 @@ function setupAIFeatures() {
     const explanationModal = document.getElementById('explanation-modal');
     const explanationContent = document.getElementById('explanation-content');
     const ctxExplainAi = document.getElementById('ctx-explain-ai');
-
-    if (settingsBtn) {
-        settingsBtn.addEventListener('click', () => {
-            const { apiKey, model } = getAISettings();
-            anthropicApiKeyInput.value = apiKey;
-            if (anthropicModelSelect) anthropicModelSelect.value = model;
-
-            settingsModal.style.display = 'block';
-        });
-    }
-
-    if (saveSettingsBtn) {
-        saveSettingsBtn.addEventListener('click', () => {
-            const key = anthropicApiKeyInput.value.trim();
-            const model = anthropicModelSelect ? anthropicModelSelect.value : 'claude-3-5-sonnet-20241022';
-
-            if (key) {
-                saveAISettings(key, model);
-            }
-
-            alert('Settings saved!');
-            settingsModal.style.display = 'none';
-        });
-    }
 
     if (aiMenuBtn && aiMenuDropdown) {
         aiMenuBtn.addEventListener('click', (e) => {

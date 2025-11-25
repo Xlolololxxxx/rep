@@ -17,6 +17,8 @@ import com.rep.plus.storage.RequestDatabase
 import com.rep.plus.utils.PCAPdroidHelper
 import org.json.JSONObject
 import org.json.JSONArray
+import java.net.URL
+import java.net.HttpURLConnection
 
 class MainActivity : Activity() {
 
@@ -331,6 +333,54 @@ class MainActivity : Activity() {
         fun stopBulkReplay() {
             // Set flag to stop execution
             activity.shouldStopBulk = true
+        }
+
+        @JavascriptInterface
+        fun callAnthropicAPI(apiKey: String, model: String, systemPrompt: String, userMessage: String, callback: String) {
+            Thread {
+                try {
+                    val url = URL("https://api.anthropic.com/v1/messages")
+                    val connection = url.openConnection() as HttpURLConnection
+                    connection.requestMethod = "POST"
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    connection.setRequestProperty("x-api-key", apiKey)
+                    connection.setRequestProperty("anthropic-version", "2023-06-01")
+                    connection.doOutput = true
+                    connection.connectTimeout = 60000
+                    connection.readTimeout = 60000
+
+                    val requestBody = JSONObject().apply {
+                        put("model", model)
+                        put("max_tokens", 4096)
+                        put("system", systemPrompt)
+                        put("messages", JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("role", "user")
+                                put("content", userMessage)
+                            })
+                        })
+                    }
+
+                    connection.outputStream.write(requestBody.toString().toByteArray())
+
+                    val responseCode = connection.responseCode
+                    val response = if (responseCode == 200) {
+                        connection.inputStream.bufferedReader().readText()
+                    } else {
+                        connection.errorStream?.bufferedReader()?.readText() ?: "Error: $responseCode"
+                    }
+
+                    activity.runOnUiThread {
+                        val escapedResponse = response.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")
+                        activity.webView.evaluateJavascript("$callback(\"$escapedResponse\", $responseCode);", null)
+                    }
+                } catch (e: Exception) {
+                    activity.runOnUiThread {
+                        val error = e.message?.replace("\"", "\\\"") ?: "Unknown error"
+                        activity.webView.evaluateJavascript("$callback(\"Error: $error\", 0);", null)
+                    }
+                }
+            }.start()
         }
     }
 

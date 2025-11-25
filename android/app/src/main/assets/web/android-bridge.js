@@ -229,6 +229,25 @@
 
         stopBulkReplay: function() {
             Android.stopBulkReplay();
+        },
+
+        callAnthropicAPI: function(apiKey, model, systemPrompt, userMessage) {
+            return new Promise((resolve, reject) => {
+                const callbackName = '_anthropicCallback_' + Date.now();
+                window[callbackName] = function(response, status) {
+                    delete window[callbackName];
+                    if (status === 200) {
+                        try {
+                            resolve(JSON.parse(response));
+                        } catch (e) {
+                            resolve({ content: [{ text: response }] });
+                        }
+                    } else {
+                        reject(new Error(response));
+                    }
+                };
+                Android.callAnthropicAPI(apiKey, model, systemPrompt, userMessage, callbackName);
+            });
         }
     };
 
