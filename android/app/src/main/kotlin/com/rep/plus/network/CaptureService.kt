@@ -169,8 +169,19 @@ class CaptureService : Service() {
 
     private fun sendToWebView(request: HttpRequest) {
         // Convert to JSON and send to WebView via broadcast
+        // Construct full URL from host and path
+        // Try to detect protocol - HTTPS typically uses port 443
+        val protocol = when {
+            request.headers["X-Forwarded-Proto"] == "https" -> "https"
+            request.host.endsWith(":443") -> "https"
+            request.host.contains(":443") -> "https"
+            else -> "http"
+        }
+        val fullUrl = "$protocol://${request.host}${request.path}"
+
         val json = JSONObject().apply {
             put("method", request.method)
+            put("url", fullUrl)
             put("path", request.path)
             put("version", request.version)
             put("host", request.host)
@@ -178,6 +189,8 @@ class CaptureService : Service() {
             put("body", request.body)
             put("timestamp", System.currentTimeMillis())
         }
+
+        Log.d(TAG, "Broadcasting captured request: ${request.method} $fullUrl")
 
         // Broadcast to MainActivity
         val intent = Intent(ACTION_HTTP_CAPTURED).apply {

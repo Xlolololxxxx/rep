@@ -8,6 +8,8 @@
     --error-color: #f28b82;
     --input-bg: #171717;
     --hover-bg: #35363a;
+    --mobile-breakpoint: 480px;
+    --tablet-breakpoint: 768px;
 }
 
 body {
@@ -1731,4 +1733,198 @@ pre {
 .secret-file a:hover {
     text-decoration: underline;
     color: var(--accent-color);
+}
+
+/* ==================== MOBILE RESPONSIVE STYLES ==================== */
+
+/* Bottom Navigation Bar */
+.bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: var(--sidebar-bg);
+    border-top: 1px solid var(--border-color);
+    z-index: 100;
+}
+
+@media (max-width: 767px) {
+    .bottom-nav {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+    }
+
+    .bottom-nav-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 8px;
+        color: var(--text-color);
+        opacity: 0.7;
+    }
+
+    .bottom-nav-item.active {
+        opacity: 1;
+        color: var(--accent-color);
+    }
+
+    .bottom-nav-item svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .bottom-nav-item span {
+        font-size: 11px;
+        margin-top: 2px;
+    }
+}
+
+/* Mobile Tabs */
+.mobile-tabs {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .mobile-tabs {
+        display: flex;
+        background: var(--sidebar-bg);
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .mobile-tab {
+        flex: 1;
+        padding: 12px;
+        text-align: center;
+        border: none;
+        background: transparent;
+        color: var(--text-color);
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    .mobile-tab.active {
+        border-bottom: 2px solid var(--accent-color);
+        color: var(--accent-color);
+    }
+}
+
+/* Mobile Layout (< 768px) */
+@media (max-width: 767px) {
+    .container {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        display: none; /* Hidden by default, shown via JS */
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 85%;
+        max-width: 320px;
+        height: 100%;
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+    }
+
+    .sidebar.open {
+        display: flex;
+        transform: translateX(0);
+    }
+
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 999;
+    }
+
+    .sidebar-overlay.visible {
+        display: block;
+    }
+
+    .main-content {
+        width: 100%;
+        height: calc(100vh - 56px); /* Leave room for bottom nav */
+    }
+
+    .split-view-container {
+        flex-direction: column;
+    }
+
+    .request-pane,
+    .response-pane {
+        width: 100% !important;
+        height: auto;
+        min-height: 300px;
+    }
+
+    /* Hide one pane at a time - controlled by JS */
+    .request-pane.hidden,
+    .response-pane.hidden {
+        display: none;
+    }
+
+    .resize-handle,
+    .pane-resize-handle {
+        display: none; /* No resizing on mobile */
+    }
+}
+
+/* Responsive Modals */
+@media (max-width: 767px) {
+    .modal-content {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100%;
+        max-height: 100%;
+        border-radius: 0;
+        margin: 0;
+    }
+
+    .modal-body {
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+    }
+
+    .modal-header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+}
+
+/* Touch-Friendly Tap Targets */
+@media (pointer: coarse) {
+    .icon-btn {
+        padding: 12px;
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .star-btn {
+        padding: 10px;
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .filter-btn {
+        padding: 12px 16px;
+        min-height: 44px;
+    }
+
+    .request-item {
+        padding: 12px;
+        min-height: 56px;
+    }
+
+    .search-nav-btn {
+        padding: 12px;
+        min-width: 44px;
+    }
 }

@@ -283,6 +283,188 @@ export function setupBulkReplay() {
         });
     }
 
+    function executeAndroidBulkReplay(attackRequests, bulkResults, bulkResultsTable, bulkProgressBar, bulkProgressText, scheme, baselineResponse) {
+        const total = attackRequests.length;
+        let completed = 0;
+
+        // Prepare requests for Android backend
+        const requests = attackRequests.map(({ requestContent }) => {
+            // Parse each request into the format expected by HttpClient
+            const lines = requestContent.split('\n');
+            const requestLine = lines[0].trim();
+            const reqLineParts = requestLine.split(' ');
+            const method = reqLineParts[0].toUpperCase();
+            const path = reqLineParts[1];
+
+            let headers = {};
+            let bodyLines = [];
+            let isBody = false;
+            let host = '';
+
+            for (let j = 1; j < lines.length; j++) {
+                const line = lines[j];
+                if (!isBody) {
+                    if (line.trim() === '') {
+                        isBody = true;
+                        continue;
+                    }
+                    if (line.trim().startsWith(':')) continue;
+
+                    const colonIndex = line.indexOf(':');
+                    if (colonIndex > 0) {
+                        const key = line.substring(0, colonIndex).trim();
+                        const value = line.substring(colonIndex + 1).trim();
+                        if (key && value) {
+                            if (key.toLowerCase() === 'host') host = value;
+                            else headers[key] = value;
+                        }
+                    }
+                } else {
+                    bodyLines.push(line);
+                }
+            }
+
+            let url = path;
+            if (!path.startsWith('http')) {
+                url = `${scheme}://${host}${path}`;
+            }
+
+            return {
+                method: method,
+                url: url,
+                headers: headers,
+                body: bodyLines.join('\n')
+            };
+        });
+
+        // Create result callback
+        const callbackName = 'bulkReplayCallback_' + Date.now();
+        window[callbackName] = function(result) {
+            if (result.complete) {
+                // Attack completed
+                console.log('Bulk replay completed');
+                delete window[callbackName];
+                return;
+            }
+
+            if (result.stopped) {
+                // Attack was stopped
+                console.log('Bulk replay stopped at index', result.index);
+                delete window[callbackName];
+                return;
+            }
+
+            const i = result.index;
+            completed++;
+
+            // Store result
+            bulkResults[i] = {
+                requestContent: attackRequests[i].requestContent,
+                status: result.status || 'Error',
+                statusText: result.statusText || '',
+                headers: result.headers ? new Map(Object.entries(result.headers)) : null,
+                responseBody: result.body || '',
+                size: result.body ? new TextEncoder().encode(result.body).length : 0,
+                duration: result.timestamp ? `${Date.now() - result.timestamp}ms` : '-',
+                error: result.error || null
+            };
+
+            // Find or create row
+            let row = bulkResultsTable.querySelector(`tr[data-index="${i}"]`);
+            if (!row) {
+                row = document.createElement('tr');
+                row.dataset.index = i;
+                row.innerHTML = `
+                    <td>${i + 1}</td>
+                    <td>${attackRequests[i].payloads.join(', ')}</td>
+                    <td class="status-cell">Processing...</td>
+                    <td class="size-cell">-</td>
+                    <td class="time-cell">-</td>
+                `;
+                bulkResultsTable.appendChild(row);
+
+                // Add click handler
+                row.addEventListener('click', () => {
+                    bulkResultsTable.querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
+                    row.classList.add('selected');
+
+                    const result = bulkResults[i];
+                    if (result) {
+                        elements.rawRequestInput.innerText = result.requestContent;
+
+                        elements.resStatus.textContent = result.statusText ? `${result.status} ${result.statusText}` : result.status;
+                        elements.resStatus.className = 'status-badge';
+                        if (result.status >= 200 && result.status < 300) elements.resStatus.classList.add('status-2xx');
+                        else if (result.status >= 400 && result.status < 500) elements.resStatus.classList.add('status-4xx');
+                        else if (result.status >= 500) elements.resStatus.classList.add('status-5xx');
+
+                        elements.resTime.textContent = result.duration;
+                        elements.resSize.textContent = formatBytes(result.size);
+
+                        if (result.error) {
+                            elements.rawResponseDisplay.textContent = result.error;
+                        } else {
+                            let rawResponse = `HTTP/1.1 ${result.status} ${result.statusText}\n`;
+                            if (result.headers) {
+                                result.headers.forEach((val, key) => {
+                                    rawResponse += `${key}: ${val}\n`;
+                                });
+                            }
+                            rawResponse += '\n';
+
+                            try {
+                                const json = JSON.parse(result.responseBody);
+                                rawResponse += JSON.stringify(json, null, 2);
+                            } catch (e) {
+                                rawResponse += result.responseBody;
+                            }
+
+                            if (elements.showDiffCheckbox && elements.showDiffCheckbox.checked && baselineResponse.trim() && typeof Diff !== 'undefined') {
+                                elements.rawResponseDisplay.innerHTML = renderDiff(baselineResponse, rawResponse);
+                            } else {
+                                elements.rawResponseDisplay.innerHTML = highlightHTTP(rawResponse);
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Update row with result
+            if (result.error) {
+                row.querySelector('.status-cell').textContent = 'Error';
+                row.querySelector('.status-cell').title = result.error;
+                row.querySelector('.size-cell').textContent = '-';
+                row.querySelector('.time-cell').textContent = bulkResults[i].duration;
+            } else {
+                row.querySelector('.status-cell').textContent = `${result.status} ${result.statusText || ''}`;
+                row.querySelector('.size-cell').textContent = formatBytes(bulkResults[i].size);
+                row.querySelector('.time-cell').textContent = bulkResults[i].duration;
+            }
+
+            // Update progress
+            const progress = (completed / total) * 100;
+            bulkProgressBar.style.setProperty('--progress', `${progress}%`);
+            bulkProgressText.textContent = `${completed}/${total}`;
+
+            // Scroll row into view
+            row.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        };
+
+        // Start execution
+        window.repAndroid.executeBulkReplay(requests, callbackName);
+
+        // Hook up stop button for Android backend
+        if (bulkStopBtn) {
+            const originalStopHandler = bulkStopBtn.onclick;
+            bulkStopBtn.onclick = function() {
+                window.repAndroid.stopBulkReplay();
+                if (originalStopHandler) {
+                    originalStopHandler.call(this);
+                }
+            };
+        }
+    }
+
     async function startBulkReplay() {
         const template = elements.rawRequestInput.innerText;
 
@@ -368,6 +550,17 @@ export function setupBulkReplay() {
         let completed = 0;
         const total = attackRequests.length;
 
+        // Check if running on Android and use native bulk replay if available
+        const useAndroidBackend = typeof window.repAndroid !== 'undefined' &&
+                                   typeof window.repAndroid.executeBulkReplay === 'function';
+
+        if (useAndroidBackend) {
+            // Use Android native bulk replay backend
+            executeAndroidBulkReplay(attackRequests, bulkResults, bulkResultsTable, bulkProgressBar, bulkProgressText, scheme, baselineResponse);
+            return;
+        }
+
+        // Fallback to browser-based execution
         for (let i = 0; i < total; i++) {
             if (state.shouldStopBulk) break;
 

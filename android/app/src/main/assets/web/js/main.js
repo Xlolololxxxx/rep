@@ -49,6 +49,155 @@ function updateThemeIcon() {
     }
 }
 
+// Mobile UI Functions
+
+// Debounce utility for resize events
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Mobile detection and initialization
+function setupMobileUI() {
+    const isMobile = window.innerWidth < 768;
+    if (!isMobile) return;
+
+    setupHamburgerMenu();
+    setupMobileTabs();
+    setupBottomNav();
+    setupSwipeGestures();
+}
+
+// Hamburger menu toggle
+function setupHamburgerMenu() {
+    const hamburgerBtn = document.getElementById('hamburger-btn');
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    if (!hamburgerBtn) return;
+
+    hamburgerBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+    });
+
+    overlay?.addEventListener('click', () => {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+    });
+}
+
+// Mobile tabs for Request/Response
+function setupMobileTabs() {
+    const tabs = document.querySelectorAll('.mobile-tab');
+    const requestPane = document.querySelector('.request-pane');
+    const responsePane = document.querySelector('.response-pane');
+
+    if (tabs.length === 0) return;
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const pane = tab.dataset.pane;
+
+            // Update tab states
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            // Show/hide panes
+            if (pane === 'request') {
+                requestPane?.classList.remove('hidden');
+                responsePane?.classList.add('hidden');
+            } else {
+                requestPane?.classList.add('hidden');
+                responsePane?.classList.remove('hidden');
+            }
+        });
+    });
+}
+
+// Swipe gestures between tabs
+function setupSwipeGestures() {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    const mainContent = document.querySelector('.main-content');
+
+    if (!mainContent) return;
+
+    mainContent.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    mainContent.addEventListener('touchend', (e) => {
+        const touchEndX = e.changedTouches[0].clientX;
+        const touchEndY = e.changedTouches[0].clientY;
+
+        const diffX = touchStartX - touchEndX;
+        const diffY = touchStartY - touchEndY;
+
+        // Only trigger if horizontal swipe is dominant and > 50px
+        if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
+            const tabs = document.querySelectorAll('.mobile-tab');
+
+            if (diffX > 0) {
+                // Swipe left - show response
+                tabs[1]?.click();
+            } else {
+                // Swipe right - show request
+                tabs[0]?.click();
+            }
+        }
+    }, { passive: true });
+}
+
+// Bottom navigation
+function setupBottomNav() {
+    const navItems = document.querySelectorAll('.bottom-nav-item');
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    if (navItems.length === 0) return;
+
+    navItems.forEach(item => {
+        item.addEventListener('click', () => {
+            const view = item.dataset.view;
+
+            // Update active state
+            navItems.forEach(i => i.classList.remove('active'));
+            item.classList.add('active');
+
+            switch(view) {
+                case 'list':
+                    // Show sidebar
+                    sidebar?.classList.add('open');
+                    overlay?.classList.add('visible');
+                    break;
+                case 'editor':
+                    // Hide sidebar, show editor
+                    sidebar?.classList.remove('open');
+                    overlay?.classList.remove('visible');
+                    break;
+                case 'capture':
+                    // Toggle capture
+                    const captureBtn = document.getElementById('start-capture-btn') || document.getElementById('stop-capture-btn');
+                    captureBtn?.click();
+                    break;
+                case 'settings':
+                    // Open settings modal
+                    document.getElementById('settings-btn')?.click();
+                    break;
+            }
+        });
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize UI Elements
     initUI();
@@ -85,6 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupContextMenu();
     setupUndoRedo();
     setupBulkReplay();
+    setupMobileUI();
 
     // Event Listeners
 
@@ -498,6 +648,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // AI Features
     setupAIFeatures();
+
+    // Re-check mobile UI on resize
+    window.addEventListener('resize', debounce(() => {
+        setupMobileUI();
+    }, 250));
 });
 
 async function handleSendRequest() {

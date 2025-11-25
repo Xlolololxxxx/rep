@@ -124,7 +124,24 @@ class RequestDatabase(context: Context) :
                     put("id", it.getLong(it.getColumnIndexOrThrow("id")))
                     put("method", it.getString(it.getColumnIndexOrThrow("method")))
                     put("url", it.getString(it.getColumnIndexOrThrow("url")))
-                    // ... (same as above)
+
+                    val headers = it.getString(it.getColumnIndexOrThrow("headers"))
+                    if (headers != null) {
+                        put("headers", JSONObject(headers))
+                    }
+
+                    put("body", it.getString(it.getColumnIndexOrThrow("body")))
+                    put("responseStatus", it.getInt(it.getColumnIndexOrThrow("response_status")))
+
+                    val responseHeaders = it.getString(it.getColumnIndexOrThrow("response_headers"))
+                    if (responseHeaders != null) {
+                        put("responseHeaders", JSONObject(responseHeaders))
+                    }
+
+                    put("responseBody", it.getString(it.getColumnIndexOrThrow("response_body")))
+                    put("timestamp", it.getLong(it.getColumnIndexOrThrow("timestamp")))
+                    put("starred", it.getInt(it.getColumnIndexOrThrow("starred")))
+                    put("tags", it.getString(it.getColumnIndexOrThrow("tags")))
                 }.toString()
             }
         }
@@ -137,11 +154,12 @@ class RequestDatabase(context: Context) :
         val db = writableDatabase
 
         val values = ContentValues().apply {
-            json.optString("method")?.let { put("method", it) }
-            json.optString("url")?.let { put("url", it) }
-            json.optJSONObject("headers")?.let { put("headers", it.toString()) }
-            json.optString("body")?.let { put("body", it) }
-            json.optInt("starred")?.let { put("starred", it) }
+            if (json.has("method")) put("method", json.getString("method"))
+            if (json.has("url")) put("url", json.getString("url"))
+            if (json.has("headers")) put("headers", json.getJSONObject("headers").toString())
+            if (json.has("body")) put("body", json.getString("body"))
+            if (json.has("starred")) put("starred", json.getInt("starred"))
+            if (json.has("tags")) put("tags", json.getString("tags"))
         }
 
         return db.update("requests", values, "id = ?", arrayOf(id.toString()))
@@ -150,6 +168,14 @@ class RequestDatabase(context: Context) :
     fun deleteRequest(id: Long): Int {
         val db = writableDatabase
         return db.delete("requests", "id = ?", arrayOf(id.toString()))
+    }
+
+    fun updateStarred(id: Long, starred: Int): Int {
+        val db = writableDatabase
+        val values = ContentValues().apply {
+            put("starred", starred)
+        }
+        return db.update("requests", values, "id = ?", arrayOf(id.toString()))
     }
 
     fun clearAll() {
@@ -172,8 +198,30 @@ class RequestDatabase(context: Context) :
         val requests = JSONArray()
         cursor.use {
             while (it.moveToNext()) {
-                // Same as getAllRequests
-                requests.put(JSONObject()) // simplified
+                val request = JSONObject().apply {
+                    put("id", it.getLong(it.getColumnIndexOrThrow("id")))
+                    put("method", it.getString(it.getColumnIndexOrThrow("method")))
+                    put("url", it.getString(it.getColumnIndexOrThrow("url")))
+
+                    val headers = it.getString(it.getColumnIndexOrThrow("headers"))
+                    if (headers != null) {
+                        put("headers", JSONObject(headers))
+                    }
+
+                    put("body", it.getString(it.getColumnIndexOrThrow("body")))
+                    put("responseStatus", it.getInt(it.getColumnIndexOrThrow("response_status")))
+
+                    val responseHeaders = it.getString(it.getColumnIndexOrThrow("response_headers"))
+                    if (responseHeaders != null) {
+                        put("responseHeaders", JSONObject(responseHeaders))
+                    }
+
+                    put("responseBody", it.getString(it.getColumnIndexOrThrow("response_body")))
+                    put("timestamp", it.getLong(it.getColumnIndexOrThrow("timestamp")))
+                    put("starred", it.getInt(it.getColumnIndexOrThrow("starred")))
+                    put("tags", it.getString(it.getColumnIndexOrThrow("tags")))
+                }
+                requests.put(request)
             }
         }
 
