@@ -33,16 +33,28 @@ class MainActivity : Activity() {
      */
     private val captureReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            val requestJson = intent.getStringExtra("request") ?: return
+            val requestData = intent.getStringExtra(CaptureService.EXTRA_REQUEST_DATA) ?: return
             Log.d(TAG, "Received captured request broadcast")
 
-            // Send to WebView
-            runOnUiThread {
-                webView.evaluateJavascript(
-                    "window.onAndroidRequestCaptured && window.onAndroidRequestCaptured($requestJson);",
-                    null
-                )
-                Log.d(TAG, "Sent request to WebView: ${requestJson.take(100)}...")
+            val parsedRequest = com.rep.plus.network.PcapParser.parse(requestData)
+            if (parsedRequest != null) {
+                val requestJson = JSONObject().apply {
+                    put("method", parsedRequest.method)
+                    put("url", parsedRequest.url)
+                    put("headers", parsedRequest.headers)
+                    put("body", parsedRequest.body)
+                }.toString()
+
+                // Send to WebView
+                runOnUiThread {
+                    webView.evaluateJavascript(
+                        "window.onAndroidRequestCaptured && window.onAndroidRequestCaptured($requestJson);",
+                        null
+                    )
+                    Log.d(TAG, "Sent request to WebView: ${requestJson.take(100)}...")
+                }
+            } else {
+                Log.w(TAG, "Failed to parse captured request.")
             }
         }
     }
@@ -66,7 +78,7 @@ class MainActivity : Activity() {
         // Register broadcast receiver for captured HTTP requests
         registerReceiver(
             captureReceiver,
-            IntentFilter(CaptureService.ACTION_HTTP_CAPTURED),
+            IntentFilter(CaptureService.ACTION_REQUEST_CAPTURED),
             RECEIVER_NOT_EXPORTED
         )
 
@@ -246,6 +258,24 @@ class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun importRequests(jsonData: String): Boolean {
+            return try {
+                val data = JSONObject(jsonData)
+                val requests = data.getJSONArray("requests")
+                for (i in 0 until requests.length()) {
+                    activity.requestDb.insertRequest(requests.getJSONObject(i).toString())
+                }
+                activity.runOnUiThread {
+                    activity.webView.evaluateJavascript("window.refreshRequestList && window.refreshRequestList();", null)
+                }
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "Import failed", e)
+                false
+            }
+        }
+
+        @JavascriptInterface
         fun showToast(message: String) {
             activity.runOnUiThread {
                 Toast.makeText(activity, message, Toast.LENGTH_SHORT).show()
@@ -254,76 +284,37 @@ class MainActivity : Activity() {
 
         @JavascriptInterface
         fun executeBulkReplay(requestsJson: String, callback: String) {
-            // Reset stop flag
             activity.shouldStopBulk = false
-
-            // Parse array of requests
             val requests = JSONArray(requestsJson)
             val totalRequests = requests.length()
 
-            // Execute in background thread
             Thread {
                 for (i in 0 until totalRequests) {
-                    // Check if we should stop
                     if (activity.shouldStopBulk) {
-                        activity.runOnUiThread {
-                            activity.webView.evaluateJavascript(
-                                "$callback({\"stopped\": true, \"index\": $i, \"total\": $totalRequests});",
-                                null
-                            )
-                        }
                         break
                     }
-
                     try {
                         val request = requests.getJSONObject(i)
-
-                        // Execute request
                         val result = com.rep.plus.network.HttpClient.send(request)
-
-                        // Add request index to result
                         result.put("index", i)
                         result.put("total", totalRequests)
-
-                        // Report back to WebView
                         activity.runOnUiThread {
-                            // Escape the JSON result properly
-                            val resultJson = result.toString()
-                                .replace("\\", "\\\\")
-                                .replace("'", "\\'")
-                                .replace("\n", "\\n")
-                                .replace("\r", "\\r")
-                            activity.webView.evaluateJavascript(
-                                "$callback($resultJson);",
-                                null
-                            )
+                            activity.webView.evaluateJavascript("$callback(${result});", null)
                         }
-
-                        // Small delay between requests to avoid overwhelming
-                        Thread.sleep(50)
                     } catch (e: Exception) {
-                        // Report error for this request
+                        val errorResult = JSONObject().apply {
+                            put("error", e.message ?: "Unknown error")
+                            put("index", i)
+                            put("total", totalRequests)
+                        }
                         activity.runOnUiThread {
-                            val errorResult = JSONObject().apply {
-                                put("error", e.message ?: "Unknown error")
-                                put("index", i)
-                                put("total", totalRequests)
-                            }
-                            activity.webView.evaluateJavascript(
-                                "$callback($errorResult);",
-                                null
-                            )
+                            activity.webView.evaluateJavascript("$callback(${errorResult});", null)
                         }
                     }
                 }
-
-                // Signal completion if not stopped
                 if (!activity.shouldStopBulk) {
                     activity.runOnUiThread {
-                        activity.webView.evaluateJavascript(
-                            "$callback({\"complete\": true, \"total\": $totalRequests});",
-                            null
-                        )
+                        activity.webView.evaluateJavascript("$callback({\"complete\": true, \"total\": $totalRequests});", null)
                     }
                 }
             }.start()
